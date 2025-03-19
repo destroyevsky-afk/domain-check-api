@@ -1,10 +1,9 @@
-from flask_cors import CORS
-
 from flask import Flask, request, jsonify
 import whois
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Allow API requests from anywhere
+CORS(app)
 
 @app.route("/check", methods=["GET"])
 def check_domain():
@@ -12,10 +11,15 @@ def check_domain():
     
     try:
         domain_info = whois.whois(domain)
-        if domain_info.expiration_date:
-            return jsonify({"message": f"{domain} is registered and expires on {domain_info.expiration_date}"})
+
+        # Check if expiration_date is a list (sometimes WHOIS returns multiple dates)
+        if isinstance(domain_info.expiration_date, list):
+            expiration_date = domain_info.expiration_date[0].strftime("%Y-%m-%d")
         else:
-            return jsonify({"message": f"{domain} is available!"})
+            expiration_date = domain_info.expiration_date.strftime("%Y-%m-%d")
+
+        return jsonify({"message": f"{domain} is registered and expires on {expiration_date}"})
+    
     except:
         return jsonify({"message": f"{domain} is available!"})
 
