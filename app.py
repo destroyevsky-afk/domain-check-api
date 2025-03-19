@@ -57,14 +57,14 @@ def generate_ai_domain_suggestions(original_domain):
     """
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(  # ✅ NEW OpenAI API format
             model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
             messages=[{"role": "system", "content": prompt}],
             max_tokens=50
         )
 
         # Extract AI-generated suggestions from response
-        suggestions = response["choices"][0]["message"]["content"].split("\n")
+        suggestions = response.choices[0].message.content.split("\n")
         return [s.strip() for s in suggestions if s.strip()]
     
     except Exception as e:
