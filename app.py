@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify
 import whois
 from flask_cors import CORS
 from datetime import datetime, timezone
-import openai  # OpenAI API for AI-driven domain suggestions
+import cohere  # Cohere AI for AI-driven domain suggestions
 import os
 
-# Load OpenAI API Key from Render environment variables
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Load Cohere API Key from Render environment variables
+cohere_api_key = os.getenv("COHERE_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
@@ -45,31 +45,30 @@ def time_until(expiration_date):
     return f"in {readable_time} (~{int(minutes)} minutes)"
 
 def generate_ai_domain_suggestions(original_domain):
-    """Use OpenAI's GPT model to generate alternative domain name suggestions."""
-    prompt = f"""
-    The domain "{original_domain}" is already taken. Suggest five alternative domain names that are:
-    - Short, brandable, and catchy
-    - Easy to spell and remember
-    - Preferably using ".com", ".io", ".co", or ".ai" TLDs
-    - Similar in theme to the original domain
-    - Creative and unique
-    Just list the domain names, one per line, without extra explanations.
-    """
-
+    """Use Cohere's AI model to generate alternative domain name suggestions."""
     try:
-        response = openai.chat.completions.create(  # ✅ NEW OpenAI API format
-            model="gpt-3.5-turbo",  # Use "gpt-4" if you have access
-            messages=[{"role": "system", "content": prompt}],
+        co = cohere.Client(cohere_api_key)
+        response = co.generate(
+            model="command-r",  # Free Cohere AI model
+            prompt=f"""
+            The domain "{original_domain}" is already taken. Suggest five alternative domain names that are:
+            - Short, brandable, and catchy
+            - Easy to spell and remember
+            - Preferably using ".com", ".io", ".co", or ".ai" TLDs
+            - Similar in theme to the original domain
+            - Creative and unique
+            Just list the domain names, one per line, without extra explanations.
+            """,
             max_tokens=50
         )
 
         # Extract AI-generated suggestions from response
-        suggestions = response.choices[0].message.content.split("\n")
+        suggestions = response.generations[0].text.split("\n")
         return [s.strip() for s in suggestions if s.strip()]
     
     except Exception as e:
         print(f"AI generation error: {e}")
-        return ["⚠️ AI is unavailable right now. Try again later!"]
+        return ["⚠️ AI is unavailable right now. Try again later."]
 
 @app.route("/check", methods=["GET"])
 def check_domain():
