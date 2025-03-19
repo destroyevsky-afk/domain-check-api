@@ -48,9 +48,9 @@ def generate_ai_domain_suggestions(original_domain):
     """Use Cohere's AI model to generate alternative domain name suggestions."""
     try:
         co = cohere.Client(cohere_api_key)
-        response = co.generate(
-            model="command-r",  # Free Cohere AI model
-            prompt=f"""
+        response = co.chat(  # ✅ Using Cohere's correct chat API instead of generate()
+            model="command-nightly",  # ✅ Correct model for AI chat-based completions
+            message=f"""
             The domain "{original_domain}" is already taken. Suggest five alternative domain names that are:
             - Short, brandable, and catchy
             - Easy to spell and remember
@@ -58,12 +58,11 @@ def generate_ai_domain_suggestions(original_domain):
             - Similar in theme to the original domain
             - Creative and unique
             Just list the domain names, one per line, without extra explanations.
-            """,
-            max_tokens=50
+            """
         )
 
         # Extract AI-generated suggestions from response
-        suggestions = response.generations[0].text.split("\n")
+        suggestions = response.text.split("\n")
         return [s.strip() for s in suggestions if s.strip()]
     
     except Exception as e:
