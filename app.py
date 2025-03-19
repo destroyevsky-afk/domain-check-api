@@ -1,7 +1,10 @@
+from flask_cors import CORS
+
 from flask import Flask, request, jsonify
 import whois
 
 app = Flask(__name__)
+CORS(app)  # Allow API requests from anywhere
 
 @app.route("/check", methods=["GET"])
 def check_domain():
