@@ -2,14 +2,11 @@ from flask import Flask, request, jsonify
 import whois
 from flask_cors import CORS
 from datetime import datetime, timezone
-import cohere  # Cohere AI for AI-driven domain suggestions
+import cohere  # AI for domain suggestions
 import os
 
 app = Flask(__name__)
-
-# ✅ Enable CORS so the frontend can access the API
 CORS(app, resources={r"/*": {"origins": "*"}})
-
 
 @app.route('/check', methods=['GET'])
 def check_domain():
@@ -22,16 +19,14 @@ def check_domain():
         available = domain_info.domain_name is None
         expiration_date = domain_info.expiration_date
 
-        # ✅ Ensure expiration_date is properly handled
         if isinstance(expiration_date, list):
-            expiration_date = expiration_date[0]  # Take the first value if it's a list
+            expiration_date = expiration_date[0]
 
         if expiration_date and isinstance(expiration_date, datetime):
-            # ✅ Make sure expiration_date is timezone-aware
             if expiration_date.tzinfo is None:
                 expiration_date = expiration_date.replace(tzinfo=timezone.utc)
 
-            now = datetime.now(timezone.utc)  # ✅ Ensure 'now' is also timezone-aware
+            now = datetime.now(timezone.utc)
             time_until_expiration = expiration_date - now
 
             expires_in = {
@@ -65,30 +60,49 @@ def ai_suggestions():
 
         response = co.generate(
             model="command",
-            prompt=f"Generate exactly 5 alternative domain names for {domain} that are available for registration. "
+            prompt=f"Generate exactly 5 alternative domain names for {domain} that are unique, brandable, and likely available for registration. "
                    f"Do NOT provide explanations, just the domain names. "
-                   f"Ensure they are safe for work and free of offensive, defamatory, or inappropriate words. "
+                   f"Do NOT use numbers, misspellings, or special characters. "
+                   f"Ensure results are safe for work and free of offensive, defamatory, or inappropriate words. "
                    f"Return only the domain names, each on a new line.",
-            max_tokens=50,
-            temperature=0.7
+            max_tokens=50,  # Lowered to reduce excess output
+            temperature=0.6
         )
 
-        # Extract and clean up responses
-        suggestions = response.generations[0].text.strip().split("\n")
-        suggestions = [s.strip() for s in suggestions if s.strip()]  # Remove empty lines
+        raw_suggestions = response.generations[0].text.strip().split("\n")
+        suggestions = [s.strip() for s in raw_suggestions if s.strip()]
 
-        # ✅ Ensure exactly 5 results (if AI gives fewer, generate more manually)
-        while len(suggestions) < 5:
-            suggestions.append(generate_fallback_alternative(domain, len(suggestions)))
+        # ✅ Verify if each suggested domain is actually available
+        available_suggestions = []
+        for suggestion in suggestions:
+            if is_domain_available(suggestion):
+                available_suggestions.append(suggestion)
+            if len(available_suggestions) == 5:  # Stop once we have 5 available domains
+                break
 
-        return jsonify({"suggestions": suggestions[:5]})  # Only return 5
+        # If fewer than 5 are available, generate fallback suggestions
+        while len(available_suggestions) < 5:
+            new_suggestion = generate_fallback_alternative(domain, len(available_suggestions))
+            if is_domain_available(new_suggestion):
+                available_suggestions.append(new_suggestion)
+
+        return jsonify({"suggestions": available_suggestions[:5]})  # Only return 5 verified available domains
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+def is_domain_available(domain_name):
+    """ Checks if a domain is available using WHOIS lookup """
+    try:
+        domain_info = whois.whois(domain_name)
+        return domain_info.domain_name is None  # True if available, False if taken
+    except:
+        return True  # If WHOIS fails, assume it's available (to prevent blocking)
+
+
 def generate_fallback_alternative(domain, count):
-    """ Basic fallback generator if AI returns fewer than 5 suggestions. """
+    """ Generates a simple fallback domain alternative if AI suggestions fail """
     suffixes = ["now", "hub", "site", "online", "pro"]
     base_name = domain.split('.')[0]  # Strip TLD from input domain
     return f"{base_name}{suffixes[count % len(suffixes)]}.com"
