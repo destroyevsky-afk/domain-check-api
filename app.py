@@ -2,11 +2,14 @@ from flask import Flask, request, jsonify
 import whois
 from flask_cors import CORS
 from datetime import datetime, timezone
-import cohere  # AI for domain suggestions
+import cohere  # Cohere AI for AI-driven domain suggestions
 import os
 
 app = Flask(__name__)
+
+# ✅ Enable CORS so the frontend can access the API
 CORS(app, resources={r"/*": {"origins": "*"}})
+
 
 @app.route('/check', methods=['GET'])
 def check_domain():
@@ -19,9 +22,9 @@ def check_domain():
         available = domain_info.domain_name is None
         expiration_date = domain_info.expiration_date
 
-        # Ensure expiration_date is a single datetime object
+        # ✅ Ensure expiration_date is properly handled
         if isinstance(expiration_date, list):
-            expiration_date = expiration_date[0]  # Take the first one
+            expiration_date = expiration_date[0]  # Take the first value if it's a list
 
         if expiration_date and isinstance(expiration_date, datetime):
             # ✅ Make sure expiration_date is timezone-aware
@@ -62,17 +65,33 @@ def ai_suggestions():
 
         response = co.generate(
             model="command",
-            prompt=f"Generate 5 alternative domain names for {domain} that are catchy and available for registration.",
+            prompt=f"Generate exactly 5 alternative domain names for {domain} that are available for registration. "
+                   f"Do NOT provide explanations, just the domain names. "
+                   f"Ensure they are safe for work and free of offensive, defamatory, or inappropriate words. "
+                   f"Return only the domain names, each on a new line.",
             max_tokens=50,
             temperature=0.7
         )
 
+        # Extract and clean up responses
         suggestions = response.generations[0].text.strip().split("\n")
+        suggestions = [s.strip() for s in suggestions if s.strip()]  # Remove empty lines
 
-        return jsonify({"suggestions": suggestions})
+        # ✅ Ensure exactly 5 results (if AI gives fewer, generate more manually)
+        while len(suggestions) < 5:
+            suggestions.append(generate_fallback_alternative(domain, len(suggestions)))
+
+        return jsonify({"suggestions": suggestions[:5]})  # Only return 5
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def generate_fallback_alternative(domain, count):
+    """ Basic fallback generator if AI returns fewer than 5 suggestions. """
+    suffixes = ["now", "hub", "site", "online", "pro"]
+    base_name = domain.split('.')[0]  # Strip TLD from input domain
+    return f"{base_name}{suffixes[count % len(suffixes)]}.com"
 
 
 if __name__ == '__main__':
