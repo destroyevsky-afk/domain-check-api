@@ -1,14 +1,12 @@
 from flask import Flask, request, jsonify
 import whois
-from flask_cors import CORS  # Import CORS
+from flask_cors import CORS
 from datetime import datetime, timezone
-import cohere  # Cohere AI for AI-driven domain suggestions
+import cohere  # AI for domain suggestions
 import os
 
 app = Flask(__name__)
-
-# ✅ Enable CORS for all routes
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/check', methods=['GET'])
 def check_domain():
@@ -21,13 +19,18 @@ def check_domain():
         available = domain_info.domain_name is None
         expiration_date = domain_info.expiration_date
 
-        # Ensure expiration_date is a list
+        # Ensure expiration_date is a single datetime object
         if isinstance(expiration_date, list):
-            expiration_date = expiration_date[0]
+            expiration_date = expiration_date[0]  # Take the first one
 
         if expiration_date and isinstance(expiration_date, datetime):
-            now = datetime.now(timezone.utc)
+            # ✅ Make sure expiration_date is timezone-aware
+            if expiration_date.tzinfo is None:
+                expiration_date = expiration_date.replace(tzinfo=timezone.utc)
+
+            now = datetime.now(timezone.utc)  # ✅ Ensure 'now' is also timezone-aware
             time_until_expiration = expiration_date - now
+
             expires_in = {
                 "days": time_until_expiration.days,
                 "weeks": time_until_expiration.days // 7,
